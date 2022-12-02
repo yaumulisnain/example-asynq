@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -29,10 +32,34 @@ func initiateAsynq() *asynq.Server {
 func setupAsynqHandler() asynq.Handler {
 	mux := asynq.NewServeMux()
 
-	mux.HandleFunc("test", func(c context.Context, t *asynq.Task) error {
-		log.Println(string(t.Payload()))
+	mux.HandleFunc("simple-handler", func(ctx context.Context, t *asynq.Task) error {
+		log.Printf("simple-handler | payload: %s\n", string(t.Payload()))
 		return nil
 	})
+
+	mux.HandleFunc("skip-retry", func(ctx context.Context, t *asynq.Task) error {
+		log.Printf("skip-retry | payload: %s\n", string(t.Payload()))
+		return fmt.Errorf("skip retry %v", asynq.SkipRetry)
+	})
+
+	retry := true
+	mux.HandleFunc("retry", func(ctx context.Context, t *asynq.Task) error {
+		log.Printf("retry | payload: %s retry:%v\n", string(t.Payload()), retry)
+		if retry {
+			retry = false
+			return errors.New("test retry")
+		} else {
+			retry = true
+			return nil
+		}
+	})
+
+	mux.HandleFunc("handler-pause", func(ctx context.Context, t *asynq.Task) error {
+		log.Printf("handler-pause | payload: %s\n", string(t.Payload()))
+		time.Sleep(2 * time.Second)
+		return nil
+	})
+
 	return mux
 }
 
